@@ -39,7 +39,6 @@ function M:get_completions(context, callback)
 			self:get_trigger_characters(),
 			context.line:sub(context.bounds.start_col - 1, context.bounds.start_col - 1)
 		)
-		vim.print(context.line:sub(context.bounds.start_col - 1, context.bounds.start_col - 1))
 		callback({
 			is_incomplete_forward = true,
 			is_incomplete_backward = true,
