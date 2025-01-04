@@ -4,7 +4,7 @@ An emoji source for [blink.cmp](https://github.com/Saghen/blink.cmp).
 
 ## 🎨 Features
 - Trigger on colon `:`.
-- Ghost text completion.
+- Ghost text completion support.
 
 ## 🔨 Installation
 
@@ -26,6 +26,7 @@ An emoji source for [blink.cmp](https://github.com/Saghen/blink.cmp).
           module = "blink-emoji",
           name = "Emoji",
           score_offset = 15, -- Tune by preference
+          opts = { insert = true }, -- Insert emoji (default) or complete its name
         }
       }
     }

@@ -1,6 +1,7 @@
 local async = require("blink.cmp.lib.async")
 
 local emojis
+local config
 
 ---Include the trigger character when accepting a completion.
 ---@param context blink.cmp.Context
@@ -23,7 +24,7 @@ local M = {}
 
 function M.new(opts)
 	local self = setmetatable({}, { __index = M })
-	self.opts = vim.tbl_deep_extend("keep", opts or {}, {
+	config = vim.tbl_deep_extend("keep", opts or {}, {
 		insert = true,
 	})
 	if not emojis then
@@ -55,7 +56,9 @@ end
 ---Change `newText` to the actual emoji when accepting a completion.
 function M:resolve(item, callback)
 	local resolved = vim.deepcopy(item)
-	resolved.textEdit.newText = resolved.insertText
+	if config.insert then
+		resolved.textEdit.newText = resolved.insertText
+	end
 	return callback(resolved)
 end
 
