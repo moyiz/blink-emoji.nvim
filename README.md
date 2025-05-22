@@ -3,7 +3,7 @@
 An emoji source for [blink.cmp](https://github.com/Saghen/blink.cmp).
 
 ## 🎨 Features
-- Trigger on colon `:`.
+- Trigger on colon `:` (configurable).
 - Ghost text completion support.
 
 ## 🔨 Installation
@@ -26,7 +26,13 @@ An emoji source for [blink.cmp](https://github.com/Saghen/blink.cmp).
           module = "blink-emoji",
           name = "Emoji",
           score_offset = 15, -- Tune by preference
-          opts = { insert = true }, -- Insert emoji (default) or complete its name
+          opts = {
+            insert = true, -- Insert emoji (default) or complete its name
+            ---@type string|table|fun():table
+            trigger = function()
+              return { ":" }
+            end,
+          },
           should_show_items = function()
             return vim.tbl_contains(
               -- Enable emoji completion only for git commits and markdown.
