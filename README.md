@@ -26,12 +26,9 @@ An emoji source for [blink.cmp](https://github.com/Saghen/blink.cmp).
           module = "blink-emoji",
           name = "Emoji",
           score_offset = 15, -- Tune by preference
-          ---@type blink-emoji.config
           opts = {
-            insert = true,
-            pre_trigger = function()
-              return { "", " ", "\t" }
-            end,
+            insert = true, -- Insert emoji (default) or complete its name
+            ---@type string|table|fun():table
             trigger = function()
               return { ":" }
             end,
