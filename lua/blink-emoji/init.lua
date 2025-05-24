@@ -25,6 +25,44 @@ local function transform(items, context)
   end, items)
 end
 
+---@param value string|string[]|fun():string[]
+---@return fun():string[]
+local function as_func(value)
+  local ret
+
+  if type(value) == "string" then
+    return function()
+      return { value }
+    end
+  elseif type(value) == "table" then
+    return function()
+      return value
+    end
+  elseif type(value) == "function" then
+    return value --[[@as fun(self: blink.cmp.Source)]]
+  end
+
+  return function()
+    return {}
+  end
+end
+
+local function keyword_pattern(line, trigger_characters)
+  -- Pattern is taken from `cmp-emoji` for similar trigger behavior.
+  for _, c in ipairs(trigger_characters) do
+    local pattern = [=[\%([[:space:]"'`]\|^\)\zs]=]
+      .. c
+      .. [=[[[:alnum:]_\-\+]*]=]
+      .. c
+      .. [=[\?]=]
+      .. "$"
+    if vim.regex(pattern):match_str(line) then
+      return true
+    end
+  end
+  return false
+end
+
 ---@type blink.cmp.Source
 local M = {}
 
@@ -36,16 +74,7 @@ function M.new(opts)
       return { ":" }
     end,
   })
-  if type(config.trigger) == "string" then
-    config.trigger = { config.trigger }
-  end
-  if type(config.trigger) == "table" then
-    self.get_trigger_characters = function()
-      return config.trigger
-    end
-  else
-    self.get_trigger_characters = config.trigger
-  end
+  self.get_trigger_characters = as_func(config.trigger)
   if not emojis then
     emojis = require("blink-emoji.emojis").get()
   end
@@ -55,19 +84,19 @@ end
 ---@param context blink.cmp.Context
 function M:get_completions(context, callback)
   local task = async.task.empty():map(function()
-    local is_char_trigger = vim.list_contains(
-      self:get_trigger_characters(),
-      context.line:sub(
-        context.bounds.start_col - 1,
-        context.bounds.start_col - 1
-      )
-    )
-    callback {
-      is_incomplete_forward = true,
-      is_incomplete_backward = true,
-      items = is_char_trigger and transform(emojis, context) or {},
-      context = context,
-    }
+    local cursor_before_line = context.line:sub(1, context.cursor[2])
+    if
+      not keyword_pattern(cursor_before_line, self:get_trigger_characters())
+    then
+      callback()
+    else
+      callback {
+        is_incomplete_forward = true,
+        is_incomplete_backward = true,
+        items = transform(emojis, context),
+        context = context,
+      }
+    end
   end)
   return function()
     task:cancel()
@@ -83,9 +112,5 @@ function M:resolve(item, callback)
   end
   return callback(resolved)
 end
-
--- function M:get_trigger_characters()
---   return { ":" }
--- end
 
 return M
