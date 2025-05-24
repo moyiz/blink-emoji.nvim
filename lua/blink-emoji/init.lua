@@ -25,27 +25,51 @@ local function transform(items, context)
   end, items)
 end
 
+---@param value string|string[]|fun():string[]
+---@return fun():string[]
+local function as_func(value)
+  local ret
+  if type(value) == "string" then
+    return function()
+      return { value }
+    end
+  elseif type(value) == "table" then
+    return function()
+      return value
+    end
+  elseif type(value) == "function" then
+    return value --[[@as fun(self: blink.cmp.Source)]]
+  end
+  return function()
+    return {}
+  end
+end
+
+local get_pre_trigger_characters
+
+---@module 'blink.cmp'
 ---@type blink.cmp.Source
 local M = {}
 
+---@class blink-emoji.config
+---@field insert boolean Whether to insert the emoji or complete its name.
+---@field pre_trigger string|string[]|fun(self: blink.cmp.Source):string[] Characters that must be present before the trigger.
+---@field trigger string|string[]|fun(self: blink.cmp.Source):string[] Trigger characters.
+local defaults = {
+  insert = true,
+  pre_trigger = function()
+    return { "", " ", "\t" }
+  end,
+  trigger = function()
+    return { ":" }
+  end,
+}
+
 function M.new(opts)
   local self = setmetatable({}, { __index = M })
-  config = vim.tbl_deep_extend("keep", opts or {}, {
-    insert = true,
-    trigger = function()
-      return { ":" }
-    end,
-  })
-  if type(config.trigger) == "string" then
-    config.trigger = { config.trigger }
-  end
-  if type(config.trigger) == "table" then
-    self.get_trigger_characters = function()
-      return config.trigger
-    end
-  else
-    self.get_trigger_characters = config.trigger
-  end
+  config = vim.tbl_deep_extend("keep", opts or {}, defaults)
+  self.get_trigger_characters = as_func(config.trigger)
+  get_pre_trigger_characters = as_func(config.pre_trigger)
   if not emojis then
     emojis = require("blink-emoji.emojis").get()
   end
@@ -55,13 +79,18 @@ end
 ---@param context blink.cmp.Context
 function M:get_completions(context, callback)
   local task = async.task.empty():map(function()
-    local is_char_trigger = vim.list_contains(
-      self:get_trigger_characters(),
-      context.line:sub(
-        context.bounds.start_col - 1,
-        context.bounds.start_col - 1
+    local is_char_trigger = context.trigger.kind == "trigger_character"
+      and vim.list_contains(
+        self:get_trigger_characters(),
+        context.trigger.character
       )
-    )
+      and vim.list_contains(
+        get_pre_trigger_characters(),
+        context.line:sub(
+          context.bounds.start_col - 2,
+          context.bounds.start_col - 2
+        )
+      )
     callback {
       is_incomplete_forward = true,
       is_incomplete_backward = true,
@@ -83,9 +112,5 @@ function M:resolve(item, callback)
   end
   return callback(resolved)
 end
-
--- function M:get_trigger_characters()
---   return { ":" }
--- end
 
 return M
