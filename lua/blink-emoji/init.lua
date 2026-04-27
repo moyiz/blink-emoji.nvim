@@ -5,7 +5,7 @@ local config
 
 ---Include the trigger character when accepting a completion.
 ---@param context blink.cmp.Context
-local function transform(items, context)
+local function transform(items, context, trigger_len)
   return vim.tbl_map(function(entry)
     return vim.tbl_deep_extend("force", entry, {
       kind = require("blink.cmp.types").CompletionItemKind.Text,
@@ -13,7 +13,7 @@ local function transform(items, context)
         range = {
           start = {
             line = context.cursor[1] - 1,
-            character = context.bounds.start_col - 2,
+            character = context.bounds.start_col - 1 - trigger_len
           },
           ["end"] = {
             line = context.cursor[1] - 1,
@@ -25,44 +25,6 @@ local function transform(items, context)
   end, items)
 end
 
----@param value string|string[]|fun():string[]
----@return fun():string[]
-local function as_func(value)
-  local ret
-
-  if type(value) == "string" then
-    return function()
-      return { value }
-    end
-  elseif type(value) == "table" then
-    return function()
-      return value
-    end
-  elseif type(value) == "function" then
-    return value --[[@as fun(self: blink.cmp.Source)]]
-  end
-
-  return function()
-    return {}
-  end
-end
-
-local function keyword_pattern(line, trigger_characters)
-  -- Pattern is taken from `cmp-emoji` for similar trigger behavior.
-  for _, c in ipairs(trigger_characters) do
-    local pattern = [=[\%([[:space:]"'`]\|^\)\zs]=]
-      .. c
-      .. [=[[[:alnum:]_\-\+]*]=]
-      .. c
-      .. [=[\?]=]
-      .. "$"
-    if vim.regex(pattern):match_str(line) then
-      return true
-    end
-  end
-  return false
-end
-
 ---@type blink.cmp.Source
 local M = {}
 
@@ -70,11 +32,8 @@ function M.new(opts)
   local self = setmetatable({}, { __index = M })
   config = vim.tbl_deep_extend("keep", opts or {}, {
     insert = true,
-    trigger = function()
-      return { ":" }
-    end,
+    trigger = ":"
   })
-  self.get_trigger_characters = as_func(config.trigger)
   if not emojis then
     emojis = require("blink-emoji.emojis").get()
   end
@@ -84,19 +43,18 @@ end
 ---@param context blink.cmp.Context
 function M:get_completions(context, callback)
   local task = async.task.empty():map(function()
-    local cursor_before_line = context.line:sub(1, context.cursor[2])
-    if
-      not keyword_pattern(cursor_before_line, self:get_trigger_characters())
-    then
-      callback()
-    else
-      callback {
-        is_incomplete_forward = true,
-        is_incomplete_backward = true,
-        items = transform(emojis, context),
-        context = context,
-      }
-    end
+    local trigger = self:get_trigger_characters()
+    local trigger_len = string.len(trigger[1])
+		local is_char_trigger = vim.tbl_contains(
+      trigger,
+			context.line:sub(context.bounds.start_col - trigger_len, context.bounds.start_col - 1)
+		)
+		callback({
+			is_incomplete_forward = true,
+			is_incomplete_backward = true,
+			items = is_char_trigger and transform(emojis, context, trigger_len) or {},
+			context = context,
+		})
   end)
   return function()
     task:cancel()
@@ -111,6 +69,20 @@ function M:resolve(item, callback)
     resolved.textEdit.newText = resolved.insertText
   end
   return callback(resolved)
+end
+
+function M:get_trigger_characters()
+  local value = config.trigger
+
+  if type(value) == "string" then
+    return { value }
+  elseif type(value) == "table" then
+    return value
+  elseif type(value) == "function" then
+    return value()
+  end
+
+  return {}
 end
 
 return M
